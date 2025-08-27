@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm install:*)",
+      "mcp__chakra-ui__get_component_example"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

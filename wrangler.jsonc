@@ -9,35 +9,33 @@
 	"compatibility_date": "2025-08-26",
 	"observability": {
 		"enabled": true
+	},
+	/**
+	 * 静态资源配置 - 用于托管前端构建文件
+	 */
+	"assets": { 
+		"directory": "./dist/", 
+		"binding": "ASSETS" 
+	},
+	/**
+	 * D1 数据库绑定
+	 */
+	"d1_databases": [
+		{
+			"binding": "DB",
+			"database_name": "dnd-conversations",
+			"database_id": "placeholder-will-be-set-when-creating"
+		}
+	],
+	/**
+	 * 环境变量 - 用于存储 LLM API 配置
+	 */
+	"vars": {
+		"NODE_ENV": "development"
 	}
 	/**
-	 * Smart Placement
-	 * Docs: https://developers.cloudflare.com/workers/configuration/smart-placement/#smart-placement
+	 * 注意：敏感信息如 API_KEY 使用 secrets 存储
+	 * 执行：wrangler secret put API_KEY
+	 * 执行：wrangler secret put BASE_URL
 	 */
-	// "placement": { "mode": "smart" }
-	/**
-	 * Bindings
-	 * Bindings allow your Worker to interact with resources on the Cloudflare Developer Platform, including
-	 * databases, object storage, AI inference, real-time communication and more.
-	 * https://developers.cloudflare.com/workers/runtime-apis/bindings/
-	 */
-	/**
-	 * Environment Variables
-	 * https://developers.cloudflare.com/workers/wrangler/configuration/#environment-variables
-	 */
-	// "vars": { "MY_VARIABLE": "production_value" }
-	/**
-	 * Note: Use secrets to store sensitive data.
-	 * https://developers.cloudflare.com/workers/configuration/secrets/
-	 */
-	/**
-	 * Static Assets
-	 * https://developers.cloudflare.com/workers/static-assets/binding/
-	 */
-	// "assets": { "directory": "./public/", "binding": "ASSETS" }
-	/**
-	 * Service Bindings (communicate between multiple Workers)
-	 * https://developers.cloudflare.com/workers/wrangler/configuration/#service-bindings
-	 */
-	// "services": [{ "binding": "MY_SERVICE", "service": "my-service" }]
 }
