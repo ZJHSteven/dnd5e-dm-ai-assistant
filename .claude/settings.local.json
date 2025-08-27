@@ -2,7 +2,14 @@
   "permissions": {
     "allow": [
       "Bash(npm install:*)",
-      "mcp__chakra-ui__get_component_example"
+      "mcp__chakra-ui__get_component_example",
+      "mcp__chakra-ui__get_theme",
+      "mcp__chakra-ui__v2_to_v3_code_review",
+      "mcp__chakra-ui__installation",
+      "Bash(npm run build:*)",
+      "Bash(npm uninstall:*)",
+      "Bash(wrangler d1 execute:*)",
+      "Bash(npm run dev:*)"
     ],
     "deny": [],
     "ask": []
