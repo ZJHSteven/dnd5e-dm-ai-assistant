@@ -102,7 +102,6 @@ const SingleBlock: React.FC<SingleBlockProps> = ({
   isExpanded,
   onToggle
 }) => {
-  const [isHovered, setIsHovered] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   // 处理值的显示（对象类型转换为字符串）
@@ -147,10 +146,8 @@ const SingleBlock: React.FC<SingleBlockProps> = ({
       bg={config.className === 'dm-private' ? 'red.50' : 'bg'}
       borderColor={config.className === 'dm-private' ? 'red.200' : 'border'}
       _hover={{ borderColor: 'blue.300' }}
-      onMouseEnter={() => setIsHovered(true)}
-      onMouseLeave={() => setIsHovered(false)}
     >
-      <Collapsible.Root open={isExpanded || isHovered}>
+      <Collapsible.Root open={isExpanded}>
         {/* 标题栏 */}
         <Collapsible.Trigger
           w="full"
@@ -174,7 +171,7 @@ const SingleBlock: React.FC<SingleBlockProps> = ({
             </HStack>
             
             {/* 折叠状态下显示预览 */}
-            {!isExpanded && !isHovered && previewText && (
+            {!isExpanded && previewText && (
               <Text fontSize="sm" color="fg.muted" lineClamp={1} maxW="300px">
                 {previewText}...
               </Text>
@@ -255,7 +252,7 @@ export const BlockInput: React.FC<BlockInputProps> = ({ value, onChange }) => {
           🎲 分块编辑区
         </Text>
         <Text fontSize="sm" color="fg.muted">
-          （鼠标悬停自动展开）
+          （点击箭头手动展开）
         </Text>
       </HStack>
 
