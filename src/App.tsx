@@ -124,15 +124,16 @@ export const App: React.FC = () => {
         {/* 顶部操作栏 */}
         <HStack
           w="full"
-          p={4}
+          p={3}
           bg="bg.muted"
           borderBottomWidth="1px"
           borderColor="border"
           justify="space-between"
           flexShrink={0}
+          minH={0}
         >
           <HStack>
-            <Text fontSize="xl" fontWeight="bold" color="fg">
+            <Text fontSize="md" fontWeight="bold" color="fg">
               🎲 D&D 5e DM AI 助手
             </Text>
           </HStack>
@@ -142,7 +143,7 @@ export const App: React.FC = () => {
               onClick={handleSendClick}
               colorPalette="blue"
               variant="solid"
-              size="md"
+              size="sm"
               loading={isLoading}
               disabled={!blocks.current_prompt.trim()}
             >
@@ -152,9 +153,9 @@ export const App: React.FC = () => {
         </HStack>
 
         {/* 主内容区域 */}
-        <HStack h="full" w="full" gap={0} align="stretch">
+        <HStack h="full" w="full" gap={0} align="stretch" minH={0}>
           {/* 左侧：聊天区域 */}
-          <Box flex={1} h="full">
+          <Box flex={1} h="full" minH={0} overflow="hidden">
             <ChatInterface
               onSendMessage={handleSendMessage}
               isLoading={isLoading}
@@ -167,24 +168,13 @@ export const App: React.FC = () => {
           <Box 
             w="50%" 
             h="full" 
+            minH={0}
             borderLeftWidth="1px" 
             borderColor="border"
             bg="bg"
-            overflowY="auto"
-            css={{
-              '&::-webkit-scrollbar': {
-                width: '6px'
-              },
-              '&::-webkit-scrollbar-track': {
-                background: 'transparent'
-              },
-              '&::-webkit-scrollbar-thumb': {
-                background: 'var(--chakra-colors-border)',
-                borderRadius: '3px'
-              }
-            }}
+            overflow="hidden"
           >
-            <Box p={4}>
+            <Box h="full" overflowY="auto" p={3}>
               <BlockInput
                 value={blocks}
                 onChange={handleBlocksChange}
@@ -197,18 +187,19 @@ export const App: React.FC = () => {
         <HStack
           w="full"
           px={4}
-          py={2}
+          py={1}
           bg="bg.muted"
           borderTopWidth="1px"
           borderColor="border"
           justify="space-between"
           flexShrink={0}
+          minH={0}
         >
-          <Text fontSize="sm" color="fg.muted">
+          <Text fontSize="xs" color="fg.muted">
             半屏友好设计 | 自动保存至本地缓存
           </Text>
           
-          <Text fontSize="sm" color="fg.muted">
+          <Text fontSize="xs" color="fg.muted">
             📊 预估 Token: ~{Math.ceil(tokenCount / 1000 * 10) / 10}k
           </Text>
         </HStack>
