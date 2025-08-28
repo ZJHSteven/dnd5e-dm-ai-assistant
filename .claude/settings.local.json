@@ -9,9 +9,13 @@
       "Bash(npm run build:*)",
       "Bash(npm uninstall:*)",
       "Bash(wrangler d1 execute:*)",
-      "Bash(npm run dev:*)"
+      "Bash(npm run dev:*)",
+      "Bash(curl:*)",
+      "Bash(wrangler tail:*)",
+      "Bash(wrangler deploy:*)"
     ],
     "deny": [],
     "ask": []
-  }
+  },
+  "outputStyle": "Explanatory"
 }

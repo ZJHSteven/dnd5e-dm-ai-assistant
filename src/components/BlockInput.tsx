@@ -128,14 +128,25 @@ const SingleBlock: React.FC<SingleBlockProps> = ({
     onChange(config.key, newValue);
   }, [config.key, onChange]);
 
-  // 自动调整文本框高度
+  // 展开时自动滚动到底部
   useEffect(() => {
     if (textareaRef.current && isExpanded) {
-      const textarea = textareaRef.current;
-      textarea.style.height = 'auto';
-      textarea.style.height = Math.max(textarea.scrollHeight, 120) + 'px';
+      // 延迟执行，确保DOM已更新
+      const timer = setTimeout(() => {
+        if (textareaRef.current) {
+          // 滚动到输入框底部
+          textareaRef.current.scrollTop = textareaRef.current.scrollHeight;
+          // 将光标移到最后
+          textareaRef.current.setSelectionRange(
+            textareaRef.current.value.length, 
+            textareaRef.current.value.length
+          );
+        }
+      }, 100);
+      
+      return () => clearTimeout(timer);
     }
-  }, [displayValue, isExpanded]);
+  }, [isExpanded]); // 只在展开状态变化时执行
 
   return (
     <Box
@@ -193,15 +204,33 @@ const SingleBlock: React.FC<SingleBlockProps> = ({
                 value={displayValue}
                 onChange={handleChange}
                 placeholder={config.placeholder}
-                minH="120px"
-                autoresize
+                height="200px"  // 固定高度
+                maxHeight="200px"  // 最大高度限制
                 variant="outline"
-                resize="vertical"
+                resize="none"  // 禁用手动调整大小
+                overflowY="auto"  // 垂直滚动条
                 bg={config.className === 'dm-private' ? 'red.25' : 'bg'}
                 borderColor={config.className === 'dm-private' ? 'red.200' : 'border'}
                 _focus={{
                   borderColor: config.className === 'dm-private' ? 'red.400' : 'blue.400',
                   boxShadow: `0 0 0 1px ${config.className === 'dm-private' ? 'var(--chakra-colors-red-400)' : 'var(--chakra-colors-blue-400)'}`
+                }}
+                // 自定义滚动条样式
+                css={{
+                  '&::-webkit-scrollbar': {
+                    width: '8px'
+                  },
+                  '&::-webkit-scrollbar-track': {
+                    background: 'var(--chakra-colors-gray-100)',
+                    borderRadius: '4px'
+                  },
+                  '&::-webkit-scrollbar-thumb': {
+                    background: 'var(--chakra-colors-gray-300)',
+                    borderRadius: '4px'
+                  },
+                  '&::-webkit-scrollbar-thumb:hover': {
+                    background: 'var(--chakra-colors-gray-400)'
+                  }
                 }}
               />
               {config.key === 'dm_private' && (
