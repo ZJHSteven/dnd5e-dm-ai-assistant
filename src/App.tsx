@@ -83,11 +83,11 @@ export const App: React.FC = () => {
       });
 
       if (!response.ok) {
-        const errorData = await response.json();
+        const errorData = await response.json() as { error?: string };
         throw new Error(errorData.error || '发送消息失败');
       }
 
-      const data = await response.json();
+      const data = await response.json() as ChatResponse;
       return data;
     } catch (error) {
       console.error('API请求失败:', error);
