@@ -3,6 +3,17 @@
 ## 项目描述
 为 D&D 5e 文字跑团 DM 开发的上下文管理工具，解决长时跑团中 AI 对话的核心痛点：上下文膨胀、记忆错乱、状态丢失。
 
+## 当前项目状态
+✅ **后端API完成**: Hono + Cloudflare Workers 服务已实现 (`src/index.ts`)  
+✅ **数据库完成**: D1 SQLite 表结构和索引已就绪 (`schema.sql`)  
+✅ **前端框架完成**: React + TypeScript + Chakra UI v3 配置完成  
+✅ **部署配置完成**: Wrangler 配置和 D1 数据库绑定完成  
+✅ **环境变量已配置**: API_KEY 和 BASE_URL 已设置为 Worker secrets  
+✅ **项目已部署**: 成功部署到 https://dnd5e-dm-ai-assistant.zhangjiahe0830.workers.dev  
+✅ **基础功能测试**: 健康检查接口和历史记录接口正常工作  
+🔧 **LLM API调用问题**: 需要调试 LLM API 响应解析问题  
+🚧 **前端组件待实现**: 8个分块编辑组件和聊天界面组件
+
 ## 核心功能需求
 - 分块管理跑团信息（8个模块：当前问题、游戏实录、模组片段、DM私记、角色状态、系统提示词、角色卡、物品清单、其他）
 - 云端优先存储（D1数据库）
@@ -86,29 +97,29 @@ CREATE TABLE conversations (
 - **物品清单**: 大文本框，鼠标悬停展开
 - **其他**: 大文本框，鼠标悬停展开
 
-## 后端API设计
+## 后端API设计 ✅已实现
 
-### 环境变量
+### 环境变量配置
+当前存储在 `.vars` 文件中：
 ```
-API_KEY=xxx
-BASE_URL=xxx
+API_KEY=sk-fTt74UbQL1nUwBH8e2gPt5F3UuceIMxcoV1rf2Z2k6NLCtIC
+BASE_URL=https://yunwu.ai
 ```
 
-### API路由（Hono）
+### 已实现的API路由
 ```typescript
-// POST /api/chat - 转发聊天请求
-app.post('/api/chat', async (c) => {
-  // 1. 接收前端8个分块JSON和模型参数
-  // 2. 拼装成合适的提示词格式
-  // 3. 转发到LLM API
-  // 4. 流式返回响应
-  // 5. 完成后保存到D1
-})
+// ✅ POST /api/chat - 聊天API转发 (已实现)
+// 接收8个分块JSON -> 拼装提示词 -> 转发到LLM -> 保存到D1 -> 返回响应
 
-// GET /api/history - 获取历史对话
-app.get('/api/history', async (c) => {
-  // 分页返回历史对话记录
-})
+// ✅ GET /api/history - 获取历史对话 (已实现)  
+// 支持分页查询：?page=1&limit=20
+
+// ✅ DELETE /api/history/:timestamp - 删除历史记录 (已实现)
+
+// ✅ GET /health - 健康检查接口 (已实现)
+
+// ✅ GET * - 静态资源托管 (已实现)
+// SPA路由支持，404时返回index.html
 ```
 
 ### 提示词拼装策略
@@ -169,12 +180,24 @@ const cacheSchema = {
 
 ## 开发优先级
 
-### P0 - 核心功能
+### ✅ P0 - 核心后端功能（已完成）
+- [x] 基础API转发（`src/index.ts` - 完整实现）
+- [x] D1数据存储（数据库表结构和操作函数）
+- [x] 聊天请求处理（8个分块拼装提示词）
+- [x] 历史记录管理（分页查询、删除功能）
+- [x] 静态资源托管（SPA路由支持）
+
+### 🚧 P0 - 核心前端功能（待实现）
 - [ ] 8个分块输入组件（鼠标悬停自动展开/折叠）
-- [ ] 聊天界面（消息列表）
-- [ ] IndexedDB本地缓存
-- [ ] 基础API转发
-- [ ] D1数据存储
+- [ ] 聊天界面（消息列表显示）
+- [ ] IndexedDB本地缓存（编辑状态持久化）
+- [ ] 与后端API集成（发送聊天请求）
+
+### 🔧 P0 - 部署配置（待完成）
+- [ ] 配置 Cloudflare Worker 环境变量（API_KEY, BASE_URL）
+- [ ] 创建和迁移D1数据库
+- [ ] 前端构建并部署到 Workers
+- [ ] 端到端功能测试
 
 ### P1 - 完善功能  
 - [ ] 模型选择器
@@ -200,3 +223,24 @@ const cacheSchema = {
 - [ ] 页面刷新后编辑状态完全恢复
 - [ ] 成功转发请求到LLM并显示响应
 - [ ] 对话记录正确保存到D1数据库
+
+## 当前测试状态
+
+### ✅ 成功的功能
+- **部署状态**: 项目已成功部署到 Cloudflare Workers
+- **健康检查**: `GET /health` 接口正常返回状态信息
+- **历史记录**: `GET /api/history` 接口正常返回空历史记录列表
+- **静态资源**: 前端React应用可以正常访问
+- **数据库**: D1数据库表结构已成功创建（本地和远程）
+
+### 🔧 需要修复的问题
+- **LLM API集成**: `POST /api/chat` 接口调用时出现JSON解析错误
+  - 错误信息: `SyntaxError: Unexpected token '<', "<!DOCTYPE "... is not valid JSON`
+  - 可能原因: LLM API端点问题或认证失败
+  - 建议: 检查 `BASE_URL=https://yunwu.ai` 的API兼容性
+
+### 📋 下一步行动计划
+1. **调试LLM API**: 验证 yunwu.ai API 端点和认证方式
+2. **完成前端组件**: 实现8个分块编辑组件
+3. **集成测试**: 确保前后端完整工作流程
+4. **用户界面优化**: 实现半屏友好设计

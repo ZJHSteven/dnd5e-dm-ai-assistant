@@ -1,6 +1,7 @@
 // 聊天界面组件 - 显示对话历史和发送消息
 
 import React, { useState, useRef, useEffect, useMemo } from 'react';
+import ReactMarkdown from 'react-markdown';
 import {
   Box,
   VStack,
@@ -12,7 +13,9 @@ import {
   Spinner,
   Stack,
   Portal,
-  createListCollection
+  createListCollection,
+  Collapsible,
+  Separator
 } from '@chakra-ui/react';
 import { ChatRequest, ChatResponse, ConversationRecord } from '../types';
 
@@ -21,6 +24,8 @@ interface Message {
   role: 'user' | 'assistant';
   content: string;
   timestamp: number;
+  // 用户消息额外字段：存储完整的分块数据用于显示抽屉
+  userBlocks?: any;
 }
 
 interface ChatInterfaceProps {
@@ -37,17 +42,18 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
   onRequestSendMessage
 }) => {
   const [messages, setMessages] = useState<Message[]>([]);
-  const [selectedModel, setSelectedModel] = useState<string>('gpt-3.5-turbo');
+  const [selectedModel, setSelectedModel] = useState<string>('gemini-2.5-flash');
+  const [isLoadingHistory, setIsLoadingHistory] = useState(true);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  // 可选的模型列表
+  // 可选的模型列表 - 更新为实际可用的模型
   const availableModels = useMemo(() => createListCollection({
     items: [
-      { value: 'gpt-3.5-turbo', label: 'GPT-3.5 Turbo' },
-      { value: 'gpt-4', label: 'GPT-4' },
-      { value: 'gpt-4-turbo', label: 'GPT-4 Turbo' },
-      { value: 'claude-3-sonnet', label: 'Claude 3 Sonnet' },
-      { value: 'claude-3-opus', label: 'Claude 3 Opus' }
+      { value: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash' },
+      { value: 'gemini-2.5-flash-lite', label: 'Gemini 2.5 Flash Lite' },
+      { value: 'gemini-2.5-pro', label: 'Gemini 2.5 Pro' },
+      { value: 'gpt-5-chat-latest', label: 'GPT-5 Chat Latest' },
+      { value: 'o3-2025-04-16', label: 'O3 (2025-04-16)' }
     ]
   }), []);
 
@@ -60,6 +66,97 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
     scrollToBottom();
   }, [messages]);
 
+  // 加载历史记录的函数
+  const loadHistoryMessages = async () => {
+    try {
+      setIsLoadingHistory(true);
+      
+      // 调用后端API获取最近10条历史记录
+      const response = await fetch('/api/history?page=1&limit=10');
+      
+      if (!response.ok) {
+        throw new Error('获取历史记录失败');
+      }
+      
+      const historyData = await response.json() as {
+        conversations: ConversationRecord[];
+        total: number;
+        page: number;
+        limit: number;
+      };
+      
+      // 将历史记录转换为消息格式
+      const historyMessages: Message[] = [];
+      
+      // 按时间戳排序（从旧到新）
+      const sortedConversations = [...historyData.conversations].sort(
+        (a, b) => a.time_stamp - b.time_stamp
+      );
+      
+      sortedConversations.forEach(record => {
+        // 解析用户输入
+        let userInput;
+        try {
+          userInput = typeof record.user_input === 'string' 
+            ? JSON.parse(record.user_input) 
+            : record.user_input;
+        } catch (error) {
+          console.warn('解析用户输入失败:', error);
+          userInput = { current_prompt: '解析失败的历史记录' };
+        }
+        
+        // 添加用户消息
+        const userMessage: Message = {
+          id: `${record.time_stamp}_user`,
+          role: 'user',
+          content: generateUserPrompt(userInput),
+          timestamp: record.time_stamp,
+          userBlocks: userInput  // 保存完整的分块数据
+        };
+        historyMessages.push(userMessage);
+        
+        // 添加AI回复（如果存在）
+        if (record.ai_response) {
+          const assistantMessage: Message = {
+            id: `${record.time_stamp}_assistant`,
+            role: 'assistant',
+            content: record.ai_response,
+            timestamp: record.time_stamp
+          };
+          historyMessages.push(assistantMessage);
+        }
+      });
+      
+      // 更新消息状态
+      setMessages(historyMessages);
+      
+      console.log(`成功加载 ${historyMessages.length} 条历史消息`);
+      
+    } catch (error) {
+      console.error('加载历史记录失败:', error);
+      
+      // 显示错误提示，但不阻止用户继续使用
+      const errorMessage: Message = {
+        id: `error_${Date.now()}`,
+        role: 'assistant',
+        content: '⚠️ 加载历史记录失败，但您仍可以开始新的对话。',
+        timestamp: Date.now()
+      };
+      setMessages([errorMessage]);
+    } finally {
+      setIsLoadingHistory(false);
+    }
+  };
+
+  // 组件挂载时加载历史记录
+  useEffect(() => {
+    loadHistoryMessages();
+  }, []);
+
+  useEffect(() => {
+    scrollToBottom();
+  }, [messages]);
+
   // 处理发送消息（这个函数会被父组件调用）
   const handleSendMessage = async (blocks: any) => {
     // 创建用户消息
@@ -67,7 +164,8 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
       id: Date.now().toString(),
       role: 'user',
       content: generateUserPrompt(blocks),
-      timestamp: Date.now()
+      timestamp: Date.now(),
+      userBlocks: blocks  // 保存完整的分块数据
     };
 
     setMessages(prev => [...prev, userMessage]);
@@ -103,23 +201,10 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
     }
   };
 
-  // 生成用户提示词预览（简化版）
+  // 生成用户提示词预览（只显示当前问题）
   const generateUserPrompt = (blocks: any): string => {
-    const parts: string[] = [];
-    
-    if (blocks.current_prompt) {
-      parts.push(`**当前问题：** ${blocks.current_prompt}`);
-    }
-    
-    if (blocks.game_log) {
-      parts.push(`**游戏实录：** ${blocks.game_log.slice(0, 100)}...`);
-    }
-    
-    if (blocks.dm_private) {
-      parts.push(`**DM私记：** [机密内容]`);
-    }
-    
-    return parts.join('\n\n');
+    // 只返回当前问题，其他内容在抽屉中显示
+    return blocks.current_prompt || '（未填写当前问题）';
   };
 
   // 格式化时间戳
@@ -154,7 +239,7 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
           <Select.Root
             collection={availableModels}
             value={[selectedModel]}
-            onValueChange={(details) => setSelectedModel(details.value[0] || 'gpt-3.5-turbo')}
+            onValueChange={(details) => setSelectedModel(details.value[0] || 'gemini-2.5-flash')}
             size="sm"
             width="180px"
           >
@@ -218,8 +303,24 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
         }}
       >
         <Stack p={4} gap={4}>
+          {/* 历史记录加载状态 */}
+          {isLoadingHistory && (
+            <Box
+              textAlign="center"
+              color="fg.muted"
+              py={10}
+            >
+              <HStack justify="center" mb={2}>
+                <Spinner size="sm" />
+                <Text fontSize="sm">
+                  正在加载历史记录...
+                </Text>
+              </HStack>
+            </Box>
+          )}
+
           {/* 欢迎消息 */}
-          {messages.length === 0 && (
+          {messages.length === 0 && !isLoadingHistory && (
             <Box
               textAlign="center"
               color="fg.muted"
@@ -229,7 +330,7 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
                 🎲 D&D 5e DM AI 助手
               </Text>
               <Text fontSize="sm">
-                在下方编辑区填写相关信息，然后点击发送开始对话
+                在右侧编辑区填写相关信息，然后点击发送开始对话
               </Text>
             </Box>
           )}

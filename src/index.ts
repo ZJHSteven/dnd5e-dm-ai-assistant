@@ -54,11 +54,9 @@ app.post('/api/chat', async (c) => {
     // 组装提示词
     const prompt = assemblePrompt(request.blocks);
     
-    // 转发到LLM API
-    const llmResponse = await forwardToLLM(prompt, {
-      model: request.model || 'gpt-3.5-turbo',
-      temperature: request.temperature || 0.7,
-      max_tokens: request.max_tokens || 2000
+    // 转发到LLM API - 使用默认参数，不限制最大tokens和温度
+    const llmResponse = await forwardToLLM(prompt, request.blocks, {
+      model: request.model || 'gemini-2.5-flash'
     }, API_KEY, BASE_URL);
 
     // 生成时间戳ID
@@ -156,20 +154,15 @@ app.delete('/api/history/:timestamp', async (c) => {
 });
 
 /**
- * 组装8个分块为完整提示词
+ * 组装非系统提示词的其他分块 - 不包含系统提示词
  */
 function assemblePrompt(blocks: UserInputBlocks): string {
   const parts = [];
 
-  // 系统提示词放在最前面
-  if (blocks.system_prompt.trim()) {
-    parts.push('=== SYSTEM PROMPT ===');
-    parts.push(blocks.system_prompt);
-    parts.push('');
-  }
-
-  // 角色卡信息
-  if (blocks.character_cards && Object.keys(blocks.character_cards).length > 0) {
+  // 按照项目文档规定的顺序进行拼接，但不包含系统提示词
+  
+  // 1. 角色卡
+  if (blocks.character_cards) {
     parts.push('=== CHARACTER CARDS ===');
     if (typeof blocks.character_cards === 'string') {
       parts.push(blocks.character_cards);
@@ -179,8 +172,8 @@ function assemblePrompt(blocks: UserInputBlocks): string {
     parts.push('');
   }
 
-  // 当前角色状态
-  if (blocks.char_status && Object.keys(blocks.char_status).length > 0) {
+  // 2. 角色状态
+  if (blocks.char_status) {
     parts.push('=== CHARACTER STATUS ===');
     if (typeof blocks.char_status === 'string') {
       parts.push(blocks.char_status);
@@ -190,22 +183,22 @@ function assemblePrompt(blocks: UserInputBlocks): string {
     parts.push('');
   }
 
-  // 游戏实录
-  if (blocks.game_log.trim()) {
+  // 3. 游戏实录
+  if (blocks.game_log && blocks.game_log.trim()) {
     parts.push('=== GAME LOG ===');
     parts.push(blocks.game_log);
     parts.push('');
   }
 
-  // 模组片段
-  if (blocks.module_snippet.trim()) {
+  // 4. 模组片段
+  if (blocks.module_snippet && blocks.module_snippet.trim()) {
     parts.push('=== MODULE SNIPPET ===');
     parts.push(blocks.module_snippet);
     parts.push('');
   }
 
-  // 物品清单
-  if (blocks.items && Object.keys(blocks.items).length > 0) {
+  // 5. 物品清单
+  if (blocks.items) {
     parts.push('=== ITEMS ===');
     if (typeof blocks.items === 'string') {
       parts.push(blocks.items);
@@ -215,21 +208,21 @@ function assemblePrompt(blocks: UserInputBlocks): string {
     parts.push('');
   }
 
-  // DM私记
-  if (blocks.dm_private.trim()) {
+  // 6. DM私记
+  if (blocks.dm_private && blocks.dm_private.trim()) {
     parts.push('=== DM PRIVATE ===');
     parts.push(blocks.dm_private);
     parts.push('');
   }
 
-  // 其他信息
-  if (blocks.other.trim()) {
+  // 7. 其他信息
+  if (blocks.other && blocks.other.trim()) {
     parts.push('=== OTHER ===');
     parts.push(blocks.other);
     parts.push('');
   }
 
-  // 当前问题放在最后
+  // 8. 当前问题 - 必须放在最后
   parts.push('=== CURRENT PROMPT ===');
   parts.push(blocks.current_prompt);
 
@@ -237,31 +230,42 @@ function assemblePrompt(blocks: UserInputBlocks): string {
 }
 
 /**
- * 转发请求到LLM API
+ * 转发请求到LLM API - 正确处理系统提示词和用户消息
  */
 async function forwardToLLM(
-  prompt: string, 
-  options: { model: string; temperature: number; max_tokens: number },
+  userPrompt: string,
+  blocks: UserInputBlocks, 
+  options: { model: string },
   apiKey: string,
   baseUrl: string
 ): Promise<{ content: string }> {
   
-  // 构建请求体（适配OpenAI格式）
+  // 构建标准OpenAI格式的消息数组
+  const messages: Array<{ role: string; content: string }> = [];
+  
+  // 如果有系统提示词，作为system角色消息
+  if (blocks.system_prompt && blocks.system_prompt.trim()) {
+    messages.push({
+      role: 'system',
+      content: blocks.system_prompt
+    });
+  }
+  
+  // 用户消息包含其他所有内容
+  messages.push({
+    role: 'user',
+    content: userPrompt
+  });
+
   const requestBody = {
     model: options.model,
-    messages: [
-      {
-        role: 'user',
-        content: prompt
-      }
-    ],
-    temperature: options.temperature,
-    max_tokens: options.max_tokens,
+    messages: messages,
     stream: false
+    // 不设置 temperature 和 max_tokens，使用API默认值
   };
 
-  // 发送请求
-  const response = await fetch(`${baseUrl}/chat/completions`, {
+  // 发送请求到LLM API
+  const response = await fetch(`${baseUrl}/v1/chat/completions`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -271,14 +275,15 @@ async function forwardToLLM(
   });
 
   if (!response.ok) {
-    throw new Error(`LLM API 请求失败: ${response.status} ${response.statusText}`);
+    const errorText = await response.text();
+    throw new Error(`LLM API 请求失败: ${response.status} ${response.statusText} - ${errorText}`);
   }
 
   const data = await response.json() as any;
   
-  // 解析响应
+  // 解析OpenAI标准格式的响应
   if (!data.choices || !data.choices[0] || !data.choices[0].message) {
-    throw new Error('LLM API 返回格式错误');
+    throw new Error('LLM API 返回格式错误: ' + JSON.stringify(data));
   }
 
   return {
