@@ -2,6 +2,8 @@
 
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+import rehypeHighlight from 'rehype-highlight';
 import {
   Box,
   VStack,
@@ -14,10 +16,7 @@ import {
   Stack,
   Portal,
   createListCollection,
-  Collapsible,
-  Separator,
-  Textarea,
-  IconButton
+  Separator
 } from '@chakra-ui/react';
 
 // 简单的SVG图标组件
@@ -406,11 +405,6 @@ interface MessageBubbleProps {
 const MessageBubble: React.FC<MessageBubbleProps> = ({ message, timestamp, onRestoreBlock }) => {
   const isUser = message.role === 'user';
   const [isExpanded, setIsExpanded] = useState(false);
-  const [showCopyTooltip, setShowCopyTooltip] = useState(false);
-  const [selectionInfo, setSelectionInfo] = useState<{
-    text: string;
-    rect: { top: number; left: number };
-  } | null>(null);
 
   // 分块字段名称映射
   const blockNames = {
@@ -425,29 +419,13 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({ message, timestamp, onRes
     other: '📦 其他'
   };
 
-  // 复制选中部分的Markdown原文
-  const handleCopySelectedMarkdown = async () => {
-    if (!selectionInfo) return;
-    
-    try {
-      // 这里简化处理，直接复制选中的文字
-      // 实际应用中可以分析选中文字在原始Markdown中的位置和格式
-      await navigator.clipboard.writeText(selectionInfo.text);
-      setShowCopyTooltip(true);
-      setTimeout(() => setShowCopyTooltip(false), 2000);
-      setSelectionInfo(null); // 隐藏浮动按钮
-    } catch (error) {
-      console.error('复制失败:', error);
-    }
-  };
-
   // 复制整个AI回复的Markdown原文
   const handleCopyMarkdown = async () => {
     try {
       // 复制完整的AI回复内容
       await navigator.clipboard.writeText(message.content);
-      setShowCopyTooltip(true);
-      setTimeout(() => setShowCopyTooltip(false), 2000);
+      // 简单提示复制成功（可选）
+      console.log('复制成功');
     } catch (error) {
       console.error('复制失败:', error);
       // 降级处理：如果 Clipboard API 不可用，提示用户手动复制
@@ -455,18 +433,6 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({ message, timestamp, onRes
     }
   };
   
-  // 点击其他地方隐藏浮动按钮
-  useEffect(() => {
-    const handleClickOutside = () => {
-      setSelectionInfo(null);
-    };
-    
-    if (selectionInfo) {
-      document.addEventListener('click', handleClickOutside);
-      return () => document.removeEventListener('click', handleClickOutside);
-    }
-  }, [selectionInfo]);
-
   // 恢复单个分块到编辑区
   const handleRestoreBlock = (blockName: string, blockValue: any) => {
     if (onRestoreBlock) {
@@ -523,138 +489,106 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({ message, timestamp, onRes
           position="relative"
           maxW="full"
           wordBreak="break-word"
-          whiteSpace="pre-wrap"
         >
           {/* AI消息：Markdown渲染 + 复制功能 */}
           {!isUser ? (
             <VStack align="flex-start" gap={2}>
-              <Box 
-                onMouseUp={(e) => {
-                  // 延迟检查选择，避免立即消失
-                  setTimeout(() => {
-                    const selection = window.getSelection();
-                    if (selection && selection.toString().length > 0) {
-                      const range = selection.getRangeAt(0);
-                      const rect = range.getBoundingClientRect();
-                      
-                      // 显示浮动复制按钮
-                      setSelectionInfo({
-                        text: selection.toString(),
-                        rect: {
-                          top: rect.bottom + window.scrollY,
-                          left: rect.left + window.scrollX
-                        }
-                      });
-                    }
-                  }, 100);
-                }}
-                onMouseDown={() => {
-                  // 清除之前的选择提示
-                  setSelectionInfo(null);
-                }}
+              {/* Markdown 内容容器 */}
+              <Box
                 cursor="text"
                 position="relative"
+                className="markdown-body"
+                w="full"
                 css={{
-                  // 强制覆盖所有列表样式
-                  '& ul, & ol': {
-                    margin: '0.25rem 0 !important',
-                    paddingLeft: '1.5rem !important'
+                  // 统一基础样式
+                  '&': { 
+                    whiteSpace: 'normal', 
+                    lineHeight: 1.7, 
+                    fontSize: '14px' 
                   },
-                  '& li': {
-                    margin: '0 !important',
-                    marginBottom: '0.1rem !important',
-                    lineHeight: '1.3 !important',
-                    padding: '0 !important'
+                  
+                  // 段落和列表的收口样式
+                  '& p': { margin: '0.6em 0' },
+                  '& ul, & ol': { 
+                    margin: 0, 
+                    paddingLeft: '1.5rem' 
                   },
-                  '& ul ul, & ol ol, & ul ol, & ol ul': {
-                    margin: '0.1rem 0 !important',
-                    paddingLeft: '1.2rem !important'
+                  
+                  // 关键：清除列表项内段落的 margin
+                  '& li > p': { 
+                    margin: '0.25em 0 !important' 
                   },
-                  '& li li': {
-                    margin: '0 !important',
-                    marginBottom: '0.05rem !important'
+                  '& li + li': { 
+                    marginTop: '0.25em' 
+                  },
+                  
+                  // 代码块样式
+                  '& pre': { 
+                    margin: '0.75em 0', 
+                    padding: '0.75em 1em', 
+                    borderRadius: '8px', 
+                    overflow: 'auto' 
+                  },
+                  '& code': {
+                    fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", "Courier New", monospace, "Noto Sans Mono CJK SC"',
+                    fontSize: '0.95em'
+                  },
+                  '& pre code': { 
+                    fontSize: '0.9em', 
+                    lineHeight: 1.5 
                   }
                 }}
               >
                 <ReactMarkdown
+                  remarkPlugins={[remarkGfm]}
+                  rehypePlugins={[rehypeHighlight]}
                   components={{
+                    // 段落：不再额外添加 margin
                     p: ({ children }) => (
-                      <Text fontSize="sm" lineHeight="1.5" mb={1.5}>
+                      <Box as="p" fontSize="sm" lineHeight="1.6">
                         {children}
-                      </Text>
+                      </Box>
                     ),
+                    
+                    // 列表
+                    ul: ({ children }) => <Box as="ul" ml={4}>{children}</Box>,
+                    ol: ({ children }) => <Box as="ol" ml={4}>{children}</Box>,
+                    
+                    // 列表项：确保内部段落 margin 为 0
+                    li: ({ children }) => (
+                      <Box as="li" css={{ '& > p': { margin: 0 } }}>
+                        {children}
+                      </Box>
+                    ),
+                    
+                    // 行内代码
                     code: ({ children }) => (
                       <Box as="code" bg="blackAlpha.100" px={1} rounded="sm" fontSize="sm">
                         {children}
                       </Box>
                     ),
+                    
+                    // 代码块
                     pre: ({ children }) => (
                       <Box bg="blackAlpha.100" p={2} rounded="md" overflow="auto" mb={2}>
                         {children}
                       </Box>
                     ),
-                    h1: ({ children }) => (
-                      <Text fontSize="lg" fontWeight="bold" my={2}>
-                        {children}
-                      </Text>
-                    ),
-                    h2: ({ children }) => (
-                      <Text fontSize="md" fontWeight="bold" my={2}>
-                        {children}
-                      </Text>
-                    ),
-                    h3: ({ children }) => (
-                      <Text fontSize="md" fontWeight="bold" my={1}>
-                        {children}
-                      </Text>
-                    ),
-                    ul: ({ children }) => (
-                      <Box as="ul" ml={4}>
-                        {children}
-                      </Box>
-                    ),
-                    ol: ({ children }) => (
-                      <Box as="ol" ml={4}>
-                        {children}
-                      </Box>
-                    ),
-                    li: ({ children }) => (
-                      <Box as="li">
-                        {children}
-                      </Box>
-                    ),
-                    hr: () => (
-                      <Box as="hr" my={3} borderColor="gray.300" />
-                    )
+                    
+                    // 标题
+                    h1: ({ children }) => <Text as="h1" fontSize="lg" fontWeight="bold" my={2}>{children}</Text>,
+                    h2: ({ children }) => <Text as="h2" fontSize="md" fontWeight="bold" my={2}>{children}</Text>,
+                    h3: ({ children }) => <Text as="h3" fontSize="md" fontWeight="bold" my={1}>{children}</Text>,
+                    
+                    // 分隔线
+                    hr: () => <Box as="hr" my={3} borderColor="gray.300" />
                   }}
                 >
                   {message.content}
                 </ReactMarkdown>
-                
-                {/* 选中文字的浮动复制按钮 */}
-                {selectionInfo && (
-                  <Box
-                    position="fixed"
-                    top={`${selectionInfo.rect.top + 5}px`}
-                    left={`${selectionInfo.rect.left}px`}
-                    zIndex={1000}
-                    bg="blue.500"
-                    color="white"
-                    px={2}
-                    py={1}
-                    rounded="md"
-                    fontSize="xs"
-                    cursor="pointer"
-                    onClick={handleCopySelectedMarkdown}
-                    boxShadow="lg"
-                    animation="fadeIn 0.2s ease-in-out"
-                  >
-                    📋 复制Markdown
-                  </Box>
-                )}
               </Box>
               
-              {/* 复制按钮 */}
+              {/* 复制整条按钮 */}
               <HStack justify="flex-end" w="full">
                 <Button
                   size="xs"

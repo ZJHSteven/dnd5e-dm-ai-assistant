@@ -14,7 +14,8 @@
       "Bash(wrangler tail:*)",
       "Bash(wrangler deploy:*)",
       "mcp__chakra-ui__get_component_props",
-      "mcp__ide__getDiagnostics"
+      "mcp__ide__getDiagnostics",
+      "WebFetch(domain:dnd5e-dm-ai-assistant.zhangjiahe0830.workers.dev)"
     ],
     "deny": [],
     "ask": []
