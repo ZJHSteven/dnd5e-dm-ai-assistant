@@ -12,7 +12,9 @@
       "Bash(npm run dev:*)",
       "Bash(curl:*)",
       "Bash(wrangler tail:*)",
-      "Bash(wrangler deploy:*)"
+      "Bash(wrangler deploy:*)",
+      "mcp__chakra-ui__get_component_props",
+      "mcp__ide__getDiagnostics"
     ],
     "deny": [],
     "ask": []

@@ -15,8 +15,30 @@ import {
   Portal,
   createListCollection,
   Collapsible,
-  Separator
+  Separator,
+  Textarea,
+  IconButton
 } from '@chakra-ui/react';
+
+// 简单的SVG图标组件
+const ChevronDownIcon = () => (
+  <svg width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+    <path fillRule="evenodd" d="M1.646 4.646a.5.5 0 0 1 .708 0L8 10.293l5.646-5.647a.5.5 0 0 1 .708.708l-6 6a.5.5 0 0 1-.708 0l-6-6a.5.5 0 0 1 0-.708z"/>
+  </svg>
+);
+
+const ChevronUpIcon = () => (
+  <svg width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+    <path fillRule="evenodd" d="M7.646 4.646a.5.5 0 0 1 .708 0l6 6a.5.5 0 0 1-.708.708L8 5.707l-5.646 5.647a.5.5 0 0 1-.708-.708l6-6z"/>
+  </svg>
+);
+
+const CopyIcon = () => (
+  <svg width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+    <path d="M4 1.5H3a2 2 0 0 0-2 2V14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V3.5a2 2 0 0 0-2-2h-1v1h1a1 1 0 0 1 1 1V14a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V3.5a1 1 0 0 1 1-1h1v-1z"/>
+    <path d="M9.5 1a.5.5 0 0 1 .5.5v1a.5.5 0 0 1-.5.5h-3a.5.5 0 0 1-.5-.5v-1a.5.5 0 0 1 .5-.5h3zm-3-1A1.5 1.5 0 0 0 5 1.5v1A1.5 1.5 0 0 0 6.5 4h3A1.5 1.5 0 0 0 11 2.5v-1A1.5 1.5 0 0 0 9.5 0h-3z"/>
+  </svg>
+);
 import { ChatRequest, ChatResponse, ConversationRecord } from '../types';
 
 interface Message {
@@ -33,13 +55,15 @@ interface ChatInterfaceProps {
   isLoading?: boolean;
   tokenCount?: number;
   onRequestSendMessage?: (handler: (blocks: any) => Promise<void>) => void;
+  onRestoreBlock?: (blockName: string, blockValue: any) => void;
 }
 
 export const ChatInterface: React.FC<ChatInterfaceProps> = ({
   onSendMessage,
   isLoading = false,
   tokenCount = 0,
-  onRequestSendMessage
+  onRequestSendMessage,
+  onRestoreBlock
 }) => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [selectedModel, setSelectedModel] = useState<string>('gemini-2.5-flash');
@@ -341,6 +365,7 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
               key={message.id}
               message={message}
               timestamp={formatTimestamp(message.timestamp)}
+              onRestoreBlock={onRestoreBlock}
             />
           ))}
 
@@ -375,10 +400,79 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
 interface MessageBubbleProps {
   message: Message;
   timestamp: string;
+  onRestoreBlock?: (blockName: string, blockValue: any) => void;
 }
 
-const MessageBubble: React.FC<MessageBubbleProps> = ({ message, timestamp }) => {
+const MessageBubble: React.FC<MessageBubbleProps> = ({ message, timestamp, onRestoreBlock }) => {
   const isUser = message.role === 'user';
+  const [isExpanded, setIsExpanded] = useState(false);
+  const [showCopyTooltip, setShowCopyTooltip] = useState(false);
+  const [selectionInfo, setSelectionInfo] = useState<{
+    text: string;
+    rect: { top: number; left: number };
+  } | null>(null);
+
+  // 分块字段名称映射
+  const blockNames = {
+    current_prompt: '📝 当前问题',
+    game_log: '📜 游戏实录',
+    module_snippet: '🏛️ 模组片段',
+    dm_private: '🔒 DM私记',
+    char_status: '👥 角色状态',
+    system_prompt: '⚙️ 系统提示词',
+    character_cards: '🎭 角色卡',
+    items: '🎒 物品清单',
+    other: '📦 其他'
+  };
+
+  // 复制选中部分的Markdown原文
+  const handleCopySelectedMarkdown = async () => {
+    if (!selectionInfo) return;
+    
+    try {
+      // 这里简化处理，直接复制选中的文字
+      // 实际应用中可以分析选中文字在原始Markdown中的位置和格式
+      await navigator.clipboard.writeText(selectionInfo.text);
+      setShowCopyTooltip(true);
+      setTimeout(() => setShowCopyTooltip(false), 2000);
+      setSelectionInfo(null); // 隐藏浮动按钮
+    } catch (error) {
+      console.error('复制失败:', error);
+    }
+  };
+
+  // 复制整个AI回复的Markdown原文
+  const handleCopyMarkdown = async () => {
+    try {
+      // 复制完整的AI回复内容
+      await navigator.clipboard.writeText(message.content);
+      setShowCopyTooltip(true);
+      setTimeout(() => setShowCopyTooltip(false), 2000);
+    } catch (error) {
+      console.error('复制失败:', error);
+      // 降级处理：如果 Clipboard API 不可用，提示用户手动复制
+      alert('复制功能不可用，请手动选择并复制文本');
+    }
+  };
+  
+  // 点击其他地方隐藏浮动按钮
+  useEffect(() => {
+    const handleClickOutside = () => {
+      setSelectionInfo(null);
+    };
+    
+    if (selectionInfo) {
+      document.addEventListener('click', handleClickOutside);
+      return () => document.removeEventListener('click', handleClickOutside);
+    }
+  }, [selectionInfo]);
+
+  // 恢复单个分块到编辑区
+  const handleRestoreBlock = (blockName: string, blockValue: any) => {
+    if (onRestoreBlock) {
+      onRestoreBlock(blockName, blockValue);
+    }
+  };
 
   return (
     <HStack
@@ -431,9 +525,239 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({ message, timestamp }) => 
           wordBreak="break-word"
           whiteSpace="pre-wrap"
         >
-          <Text fontSize="sm" lineHeight="relaxed">
-            {message.content}
-          </Text>
+          {/* AI消息：Markdown渲染 + 复制功能 */}
+          {!isUser ? (
+            <VStack align="flex-start" gap={2}>
+              <Box 
+                onMouseUp={(e) => {
+                  // 延迟检查选择，避免立即消失
+                  setTimeout(() => {
+                    const selection = window.getSelection();
+                    if (selection && selection.toString().length > 0) {
+                      const range = selection.getRangeAt(0);
+                      const rect = range.getBoundingClientRect();
+                      
+                      // 显示浮动复制按钮
+                      setSelectionInfo({
+                        text: selection.toString(),
+                        rect: {
+                          top: rect.bottom + window.scrollY,
+                          left: rect.left + window.scrollX
+                        }
+                      });
+                    }
+                  }, 100);
+                }}
+                onMouseDown={() => {
+                  // 清除之前的选择提示
+                  setSelectionInfo(null);
+                }}
+                cursor="text"
+                position="relative"
+                css={{
+                  // 强制覆盖所有列表样式
+                  '& ul, & ol': {
+                    margin: '0.25rem 0 !important',
+                    paddingLeft: '1.5rem !important'
+                  },
+                  '& li': {
+                    margin: '0 !important',
+                    marginBottom: '0.1rem !important',
+                    lineHeight: '1.3 !important',
+                    padding: '0 !important'
+                  },
+                  '& ul ul, & ol ol, & ul ol, & ol ul': {
+                    margin: '0.1rem 0 !important',
+                    paddingLeft: '1.2rem !important'
+                  },
+                  '& li li': {
+                    margin: '0 !important',
+                    marginBottom: '0.05rem !important'
+                  }
+                }}
+              >
+                <ReactMarkdown
+                  components={{
+                    p: ({ children }) => (
+                      <Text fontSize="sm" lineHeight="1.5" mb={1.5}>
+                        {children}
+                      </Text>
+                    ),
+                    code: ({ children }) => (
+                      <Box as="code" bg="blackAlpha.100" px={1} rounded="sm" fontSize="sm">
+                        {children}
+                      </Box>
+                    ),
+                    pre: ({ children }) => (
+                      <Box bg="blackAlpha.100" p={2} rounded="md" overflow="auto" mb={2}>
+                        {children}
+                      </Box>
+                    ),
+                    h1: ({ children }) => (
+                      <Text fontSize="lg" fontWeight="bold" my={2}>
+                        {children}
+                      </Text>
+                    ),
+                    h2: ({ children }) => (
+                      <Text fontSize="md" fontWeight="bold" my={2}>
+                        {children}
+                      </Text>
+                    ),
+                    h3: ({ children }) => (
+                      <Text fontSize="md" fontWeight="bold" my={1}>
+                        {children}
+                      </Text>
+                    ),
+                    ul: ({ children }) => (
+                      <Box as="ul" ml={4}>
+                        {children}
+                      </Box>
+                    ),
+                    ol: ({ children }) => (
+                      <Box as="ol" ml={4}>
+                        {children}
+                      </Box>
+                    ),
+                    li: ({ children }) => (
+                      <Box as="li">
+                        {children}
+                      </Box>
+                    ),
+                    hr: () => (
+                      <Box as="hr" my={3} borderColor="gray.300" />
+                    )
+                  }}
+                >
+                  {message.content}
+                </ReactMarkdown>
+                
+                {/* 选中文字的浮动复制按钮 */}
+                {selectionInfo && (
+                  <Box
+                    position="fixed"
+                    top={`${selectionInfo.rect.top + 5}px`}
+                    left={`${selectionInfo.rect.left}px`}
+                    zIndex={1000}
+                    bg="blue.500"
+                    color="white"
+                    px={2}
+                    py={1}
+                    rounded="md"
+                    fontSize="xs"
+                    cursor="pointer"
+                    onClick={handleCopySelectedMarkdown}
+                    boxShadow="lg"
+                    animation="fadeIn 0.2s ease-in-out"
+                  >
+                    📋 复制Markdown
+                  </Box>
+                )}
+              </Box>
+              
+              {/* 复制按钮 */}
+              <HStack justify="flex-end" w="full">
+                <Button
+                  size="xs"
+                  variant="ghost"
+                  onClick={handleCopyMarkdown}
+                  colorPalette="gray"
+                >
+                  <HStack>
+                    <CopyIcon />
+                    <Text>复制</Text>
+                  </HStack>
+                </Button>
+              </HStack>
+            </VStack>
+          ) : (
+            /* 用户消息：当前问题 + 展开分块 */
+            <VStack align="flex-start" gap={3} w="full">
+              {/* 当前问题（始终显示） */}
+              <Text fontSize="sm" lineHeight="relaxed">
+                {message.content}
+              </Text>
+              
+              {/* 展开/收起按钮 */}
+              {message.userBlocks && (
+                <HStack w="full" justify="space-between">
+                  <Button
+                    size="xs"
+                    variant="ghost"
+                    onClick={() => setIsExpanded(!isExpanded)}
+                    colorPalette="white"
+                  >
+                    <HStack>
+                      <Text>{isExpanded ? '收起详情' : '查看详情'}</Text>
+                      {isExpanded ? <ChevronUpIcon /> : <ChevronDownIcon />}
+                    </HStack>
+                  </Button>
+                </HStack>
+              )}
+              
+              {/* 展开的分块内容 */}
+              {isExpanded && message.userBlocks && (
+                <VStack w="full" gap={2} align="stretch">
+                  <Separator color="whiteAlpha.300" />
+                  
+                  {Object.entries(message.userBlocks).map(([key, value]) => {
+                    if (key === 'current_prompt') return null; // 当前问题已经显示了
+                    
+                    const displayValue = typeof value === 'object' 
+                      ? JSON.stringify(value, null, 2) 
+                      : String(value || '');
+                    
+                    if (!displayValue.trim()) return null;
+                    
+                    return (
+                      <Box key={key}>
+                        <HStack justify="space-between" mb={1}>
+                          <Text fontSize="xs" fontWeight="bold" color="whiteAlpha.800">
+                            {blockNames[key as keyof typeof blockNames] || key}
+                          </Text>
+                          
+                          {/* 恢复按钮 */}
+                          <Button
+                            size="xs"
+                            variant="solid"
+                            colorPalette="green"
+                            onClick={() => handleRestoreBlock(key, value)}
+                          >
+                            恢复
+                          </Button>
+                        </HStack>
+                        
+                        {/* 分块内容预览（有高度限制） */}
+                        <Box
+                          bg="whiteAlpha.200"
+                          rounded="md"
+                          p={2}
+                          maxH="120px"
+                          overflowY="auto"
+                          fontSize="xs"
+                          fontFamily="mono"
+                          whiteSpace="pre-wrap"
+                          css={{
+                            '&::-webkit-scrollbar': {
+                              width: '4px'
+                            },
+                            '&::-webkit-scrollbar-track': {
+                              background: 'transparent'
+                            },
+                            '&::-webkit-scrollbar-thumb': {
+                              background: 'rgba(255,255,255,0.3)',
+                              borderRadius: '2px'
+                            }
+                          }}
+                        >
+                          {displayValue}
+                        </Box>
+                      </Box>
+                    );
+                  })}
+                </VStack>
+              )}
+            </VStack>
+          )}
         </Box>
       </VStack>
 

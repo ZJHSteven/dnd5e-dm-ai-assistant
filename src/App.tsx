@@ -71,6 +71,17 @@ export const App: React.FC = () => {
     setBlocks(newBlocks);
   }, []);
 
+  // 处理单个分块恢复功能（从历史消息恢复分块内容）
+  const handleRestoreBlock = useCallback((blockName: string, blockValue: any) => {
+    setBlocks(prevBlocks => ({
+      ...prevBlocks,
+      [blockName]: blockValue
+    }));
+    
+    // 显示成功提示（可以后续优化为 Toast 组件）
+    console.log(`已恢复分块: ${blockName}`);
+  }, []);
+
   // 发送消息到后端API
   const handleSendMessage = async (request: ChatRequest): Promise<ChatResponse> => {
     try {
@@ -161,6 +172,7 @@ export const App: React.FC = () => {
               isLoading={isLoading}
               tokenCount={tokenCount}
               onRequestSendMessage={(handler) => setSendMessageHandler(() => handler)}
+              onRestoreBlock={handleRestoreBlock}
             />
           </Box>
 
