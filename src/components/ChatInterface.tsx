@@ -1,6 +1,6 @@
 // 聊天界面组件 - 显示对话历史和发送消息
 
-import React, { useState, useRef, useEffect, useMemo } from 'react';
+import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeHighlight from 'rehype-highlight';
@@ -81,9 +81,9 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
   }), []);
 
   // 自动滚动到最新消息
-  const scrollToBottom = () => {
+  const scrollToBottom = useCallback(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  };
+  }, []);
 
   useEffect(() => {
     scrollToBottom();
@@ -176,10 +176,6 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
     loadHistoryMessages();
   }, []);
 
-  useEffect(() => {
-    scrollToBottom();
-  }, [messages]);
-
   // 处理发送消息（这个函数会被父组件调用）
   const handleSendMessage = async (blocks: any) => {
     // 创建用户消息
@@ -231,12 +227,12 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
   };
 
   // 格式化时间戳
-  const formatTimestamp = (timestamp: number): string => {
+  const formatTimestamp = useCallback((timestamp: number): string => {
     return new Date(timestamp).toLocaleTimeString('zh-CN', {
       hour: '2-digit',
       minute: '2-digit'
     });
-  };
+  }, []);
 
   // 将发送消息方法暴露给父组件
   useEffect(() => {
@@ -402,7 +398,7 @@ interface MessageBubbleProps {
   onRestoreBlock?: (blockName: string, blockValue: any) => void;
 }
 
-const MessageBubble: React.FC<MessageBubbleProps> = ({ message, timestamp, onRestoreBlock }) => {
+const MessageBubble: React.FC<MessageBubbleProps> = React.memo(({ message, timestamp, onRestoreBlock }) => {
   const isUser = message.role === 'user';
   const [isExpanded, setIsExpanded] = useState(false);
 
@@ -499,8 +495,21 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({ message, timestamp, onRes
                 position="relative"
                 className="markdown-body"
                 w="full"
+                onPointerDownCapture={(e) => e.stopPropagation()}
                 css={{
-                  // 统一基础样式
+                  // ① 强制允许文本选择（含Safari前缀）
+                  '&, & *': { 
+                    userSelect: 'text', 
+                    WebkitUserSelect: 'text' 
+                  },
+                  
+                  // ② 链接/按钮也允许被当作文本选择  
+                  '& a, & button': { 
+                    userSelect: 'text', 
+                    WebkitUserSelect: 'text' 
+                  },
+                  
+                  // ③ 统一基础样式
                   '&': { 
                     whiteSpace: 'normal', 
                     lineHeight: 1.7, 
@@ -714,4 +723,4 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({ message, timestamp, onRes
       )}
     </HStack>
   );
-};
+});
