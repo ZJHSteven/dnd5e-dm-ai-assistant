@@ -257,11 +257,19 @@ async function forwardToLLM(
     content: userPrompt
   });
 
+  // 配置D&D跑团优化的LLM参数
+  // - 高温度(1.75)增加创造性，适合跑团场景的随机性和想象力
+  // - 频率惩罚(0.15)减少词汇重复，让描述更丰富多样
+  // - 存在惩罚(0.14)避免过度重复已出现的概念
+  // - top_p(0.91)在保持创造性的同时防止完全随机
   const requestBody = {
     model: options.model,
     messages: messages,
-    stream: false
-    // 不设置 temperature 和 max_tokens，使用API默认值
+    stream: false,
+    temperature: 1.75,        // 高创造性输出，适合跑团场景
+    frequency_penalty: 0.15,  // 减少词汇重复
+    presence_penalty: 0.14,   // 避免概念重复
+    top_p: 0.91              // 限制token选择范围，保持连贯性
   };
 
   // 发送请求到LLM API
